@@ -13,6 +13,7 @@ ruleset wovyn_base {
 
     global {
         temperature_threshold = sprofile:sensor_threshold()
+        toPhone = sprofile:alert_phone()
     }
 
     rule process_heartbeat {
@@ -62,7 +63,6 @@ ruleset wovyn_base {
         select when wovyn threshold_violation
         pre {
             fromPhone = "+17655655074"
-            toPhone = "+19199997000"
             message = "temperature of " + event:attrs{"temperature"} + "F was recorded at " + event:attrs{"timestamp"}
         }
         twilio:sendSMS(fromPhone, toPhone, message)
