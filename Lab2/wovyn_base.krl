@@ -8,10 +8,11 @@ ruleset wovyn_base {
             with
                 sid = meta:rulesetConfig{"sid"}
                 token = meta:rulesetConfig{"token"}
+        use module sensor_profile alias sprofile
     }
 
     global {
-        temperature_threshold = 60.0
+        temperature_threshold = sprofile:sensor_threshold()
     }
 
     rule process_heartbeat {

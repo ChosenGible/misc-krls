@@ -3,6 +3,8 @@ ruleset temperature_store {
         name "Temperature Store"
         author "Alex Brown"
 
+        use module sensor_profile alias sprofile
+
         shares temperatures, threshold_violations, inrage_temperatures
         provides temperatures, threshold_violations, inrage_temperatures
     }
@@ -10,7 +12,7 @@ ruleset temperature_store {
     global {
         clear_temps = [{"temperature":60,"timestamp":0}]
 
-        temperature_threshold = 60.0
+        temperature_threshold = sprofile:sensor_threshold()
 
         temperatures = function(){
             ent:temperatures
