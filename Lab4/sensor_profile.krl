@@ -17,7 +17,7 @@ ruleset sensor_profile {
             ent:sensorName
         }
         sensor_location = function(){
-            ent:sensorLocation
+            ent:sensorLocation  
         }
         sensor_threshold = function(){
             ent:threshold
@@ -51,6 +51,7 @@ ruleset sensor_profile {
             ent:sensorName := clearName
             ent:sensorLocation := clearLocation
             ent:threshold := clearThreshold
+            ent:phone := clearPhone
         }
     }
 }
