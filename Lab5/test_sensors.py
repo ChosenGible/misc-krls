@@ -1,8 +1,8 @@
 import json
 import urllib3
 
-EVENT_URL = "http://localhost:3000/sky/event/ckzzyxgpw001me1ztf5ta2up2/0001/"
-QUERY_URL = "http://localhost:3000/sky/cloud/ckzzyxgpw001me1ztf5ta2up2/manage_sensors/"
+EVENT_URL = "http://localhost:3000/sky/event/cl01kftkx00152dztd6x10b4z/0001/"
+QUERY_URL = "http://localhost:3000/sky/cloud/cl01kftkx00152dztd6x10b4z/manage_sensors/"
 
 def queryToString(query, params = ""):
     http = urllib3.PoolManager()
