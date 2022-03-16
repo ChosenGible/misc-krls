@@ -67,4 +67,20 @@ ruleset wovyn_base {
         }
         twilio:sendSMS(fromPhone, toPhone, message)
     }
+
+    rule threshold_notification_sub {
+        select when wovyn threshold_violation
+        always {
+            raise wrangler event "send_event_on_subs"
+                attributes {
+                    "domain":"sensor",
+                    "type":"threshold_violation",
+                    "Rx_role":"manager",
+                    "attrs":{
+                        "temperature":event:attrs{"temperature"},
+                        "timestamp":event:attrs{"timestamp"}
+                    }
+                }
+        }
+    }
 }

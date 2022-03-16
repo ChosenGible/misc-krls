@@ -4,8 +4,12 @@ ruleset manage_sensors {
         author "Alex Brown"
 
         use module io.picolabs.wrangler alias wrangler
+        use module manager_profile alias mprofile
+            with
+                sid = meta:rulesetConfig{"sid"}
+                token = meta:rulesetConfig{"token"}
 
-        shares sensors, temperatures, threshold_violations, inrange_temperatures, sp_sensor_name, sp_sensor_location, sp_sensor_threshold, sp_alert_phone
+        shares sensors, sub_sensors, temperatures, threshold_violations, inrange_temperatures, sp_sensor_name, sp_sensor_location, sp_sensor_threshold, sp_alert_phone
     }
 
     global {
@@ -55,39 +59,39 @@ ruleset manage_sensors {
 
         //test functions
         sp_sensor_name = function(sensor_id) {
-            eci = ent:sensors{[sensor_id, "eci"]}
+            eci = ent:sensors_subs{[sensor_id, "Tx"]}
             wrangler:picoQuery(eci, "sensor_profile", "sensor_name")
         }
         sp_sensor_location = function(sensor_id) {
-            eci = ent:sensors{[sensor_id, "eci"]}
+            eci = ent:sensors_subs{[sensor_id, "Tx"]}
             wrangler:picoQuery(eci, "sensor_profile", "sensor_location")
         }
         sp_sensor_threshold = function(sensor_id) {
-            eci = ent:sensors{[sensor_id, "eci"]}
+            eci = ent:sensors_subs{[sensor_id, "Tx"]}
             wrangler:picoQuery(eci, "sensor_profile", "sensor_threshold")
         }
         sp_alert_phone = function(sensor_id) {
-            eci = ent:sensors{[sensor_id, "eci"]}
+            eci = ent:sensors_subs{[sensor_id, "Tx"]}
             wrangler:picoQuery(eci, "sensor_profile", "alert_phone")
         }
 
         sensor_temperatures = function(value, key) {
-            eci = ent:sensors{[key, "eci"]}
+            eci = ent:sensors_subs{[key, "Tx"]}
             wrangler:picoQuery(eci, "temperature_store", "temperatures")
         }
 
         sensor_violations = function(value, key) {
-            eci = ent:sensors{[key, "eci"]}
+            eci = ent:sensors_subs{[key, "Tx"]}
             wrangler:picoQuery(eci, "temperature_store", "threshold_violations")
         }
 
         sensor_inrange = function(value, key) {
-            eci = ent:sensors{[key, "eci"]}
+            eci = ent:sensors_subs{[key, "Tx"]}
             wrangler:picoQuery(eci, "temperature_store", "inrage_temperatures")
         }
 
         temperatures = function() {
-            ent:sensors.map(sensor_temperatures)
+            ent:sensors_subs.map(sensor_temperatures)
         }
 
         threshold_violations = function() {
@@ -99,7 +103,6 @@ ruleset manage_sensors {
         }
 
 
-
         twillio_url = "https://raw.githubusercontent.com/ChosenGible/misc-krls/master/Lab1/twilio_wrapper.krl"
         wovyn_base_url = "https://raw.githubusercontent.com/ChosenGible/misc-krls/master/Lab2/wovyn_base.krl"
         //wovyn_base_rid = "wovyn_base"
@@ -109,6 +112,7 @@ ruleset manage_sensors {
         //sensor_profile_rid = "sensor_profile_rid"
         emitter_url = "https://raw.githubusercontent.com/windley/temperature-network/main/io.picolabs.wovyn.emitter.krl"
         //emitter_rid = "io.picolabs.wovyn.emitter"
+        subman_url = "https://raw.githubusercontent.com/ChosenGible/misc-krls/master/Lab6/sub_manager.krl"
 
         empty_config = {}
         wovyn_config = {"sid" : meta:rulesetConfig{"sid"}, "token" : meta:rulesetConfig{"token"}}
@@ -118,7 +122,7 @@ ruleset manage_sensors {
         select when sensor new_sensor
         pre {
             sensor_id = event:attrs{"sensor_id"}
-            exists = ent:sensors && ent:sensors >< sensor_id
+            exists = ent:sensors_subs && ent:sensors_subs >< sensor_id
         }
         if not exists then
             send_directive("say", {"Manage Sensors":"Creating new sensor Pico with sensor_id = " + sensor_id})
@@ -135,7 +139,7 @@ ruleset manage_sensors {
         select when sensor new_sensor
         pre {
             sensor_id = event:attrs{"sensor_id"}
-            exists = ent:sensors && ent:sensors >< sensor_id
+            exists = ent:sensors_subs && ent:sensors_subs >< sensor_id
         }
         if exists then 
             send_directive("say", {"Manage Sensors":"Found exisitng sensor Pico with sensor_id = " + sensor_id + ", could not create new sensor Pico"})
@@ -194,12 +198,12 @@ ruleset manage_sensors {
     rule setup_subscription {
         select when wrangler subscription_added
         pre {
-            sensor_id = evnet:attrs{"sensor_id"}
+            sensor_id = event:attrs{"sensor_id"}
             sub_id = event:attrs{"Id"}
             sub_info = event:attrs{"bus"}.put("sensor_id", sensor_id)
         }
         always {
-            ent:sensors_subs{sub_id} := sub_info.put("sensor_id", sensor_id)
+            ent:sensors_subs{sensor_id} := sub_info.put("sensor_id", sensor_id)
         }
     }
 
@@ -207,16 +211,27 @@ ruleset manage_sensors {
         select when sensor unneeded_sensor
         pre {
             sensor_id = event:attrs{"sensor_id"}
-            exists = ent:sensors >< sensor_id
-            sensor_eci = ent:sensors{[sensor_id, "eci"]}
+            exists = ent:sensors_subs >< sensor_id
+            sub_id = ent:sensors_subs{[sensor_id, "Id"]}
         }
-        if exists && sensor_eci then
+        if exists && sub_id then
             send_directive("deleting sensor", {"sensor_id":sensor_id})
         fired {
-            raise wrangler event "child_deletion_request"
-                attributes { "eci" : sensor_eci };
+            raise wrangler event "subscription_cancellation"
+                attributes { "Id" : sub_id };
             clear ent:sensors{sensor_id}
+            clear ent:sensors_subs{sensor_id}
         }
+    }
+
+    rule threshold_notification {
+        select when sensor threshold_violation
+        pre {
+            temperature = event:attrs{"temperature"}
+            timestamp = event:attrs{"timestamp"}
+            message = "Temperature of " + temperature + "F was recorded at " + timestamp
+        }
+        mprofile:sendSMS(message)
     }
 
     // rule reset_sensor_manager {
