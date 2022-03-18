@@ -59,14 +59,14 @@ ruleset wovyn_base {
 
     }
 
-    rule threshold_notification {
-        select when wovyn threshold_violation
-        pre {
-            fromPhone = "+17655655074"
-            message = "temperature of " + event:attrs{"temperature"} + "F was recorded at " + event:attrs{"timestamp"}
-        }
-        twilio:sendSMS(fromPhone, toPhone, message)
-    }
+    // rule threshold_notification {
+    //     select when wovyn threshold_violation
+    //     pre {
+    //         fromPhone = "+17655655074"
+    //         message = "temperature of " + event:attrs{"temperature"} + "F was recorded at " + event:attrs{"timestamp"}
+    //     }
+    //     twilio:sendSMS(fromPhone, toPhone, message)
+    // }
 
     rule threshold_notification_sub {
         select when wovyn threshold_violation

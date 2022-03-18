@@ -229,7 +229,7 @@ ruleset manage_sensors {
         pre {
             temperature = event:attrs{"temperature"}
             timestamp = event:attrs{"timestamp"}
-            message = "Temperature of " + temperature + "F was recorded at " + timestamp
+            message = "FROM MANAGER: Temperature of " + temperature + "F was recorded at " + timestamp
         }
         mprofile:sendSMS(message)
     }
