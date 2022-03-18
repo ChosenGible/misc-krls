@@ -75,7 +75,7 @@ ruleset wovyn_base {
                 attributes {
                     "domain":"sensor",
                     "type":"threshold_violation",
-                    "Rx_role":"manager",
+                    "Tx_role":"manager",
                     "attrs":{
                         "temperature":event:attrs{"temperature"},
                         "timestamp":event:attrs{"timestamp"}
