@@ -256,7 +256,7 @@ ruleset manage_sensors {
 
             report = {"temp":recent_temp,"sensorRx":sensor_Rx}
         }
-        if recent_temp_report && sensor_Rx then noop()
+        if recent_temp && sensor_Rx then noop()
         fired {
             ent:report_log := ent:report_log.defaultsTo(clear_report_log, "report log not set")
             ent:report_log := ent:report_log.append(report)

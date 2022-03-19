@@ -10,7 +10,7 @@ ruleset temperature_store {
     }
 
     global {
-        clear_temps = [{"temperature":60,"timestamp":0}]
+        clear_temps = []
 
         temperature_threshold = sprofile:sensor_threshold()
 
