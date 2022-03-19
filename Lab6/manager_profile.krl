@@ -25,7 +25,8 @@ ruleset manager_profile {
         }
 
         messages = function(ItemPerPage){
-            map1 = ent:toPhone => {}.put("To", ent:toPhone) | {}
+            toPhone = ent:phone => ent:phone | clearPhone
+            map1 = toPhone => {}.put("To", toPhone) | {}
             map2 = fromPhone => map1.put("From", fromPhone) | map1
             queryString = ItemPerPage => map2.put("PageSize", ItemPerPage) | map2
             response = http:get(base_uri + "/Messages.json", qs=queryString, auth=api_auth)
@@ -33,9 +34,10 @@ ruleset manager_profile {
         }
         
         sendSMS = defaction(message) {
+            toPhone = ent:phone => ent:phone | clearPhone
             formData = {
                     "From": fromPhone,
-                    "To": ent:phone,
+                    "To": toPhone,
                     "Body": message
                 }
             http:post(base_uri + "/Messages", form=formData, auth=api_auth) setting(response)

@@ -61,4 +61,23 @@ ruleset temperature_store {
             ent:violations := clear_temps
         }
     }
+
+    rule generate_report {
+        select when sensor generate_report
+        pre {
+            recent_temp = ent:temperatures.index(ent:temperatures.length() - 1)
+        }
+        always {
+            raise wrangler event "send_event_on_subs"
+                attributes {
+                    "domain":"sensor",
+                    "type":"report",
+                    "Tx_role":"manager",
+                    "attrs":{
+                        "recent_tempt":recent_temp,
+                        "sensor_Rx":subscription:Wellknown_Rx
+                    }
+                }
+        }
+    }
 }

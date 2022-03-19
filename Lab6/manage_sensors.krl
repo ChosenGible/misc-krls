@@ -116,6 +116,8 @@ ruleset manage_sensors {
 
         empty_config = {}
         wovyn_config = {"sid" : meta:rulesetConfig{"sid"}, "token" : meta:rulesetConfig{"token"}}
+
+        clear_report_log = []
     }
 
     rule new_sensor {
@@ -232,6 +234,42 @@ ruleset manage_sensors {
             message = "FROM MANAGER: Temperature of " + temperature + "F was recorded at " + timestamp
         }
         mprofile:sendSMS(message)
+    }
+
+    rule request_report {
+        select when sensor report_request
+        always {
+            raise wrangler event "send_event_on_subs"
+                attributes {
+                    "domain":"sensor",
+                    "type":"generate_report",
+                    "Tx_role":"sensor"
+                }
+        }
+    }
+
+    rule recieve_report {
+        select when sensor report
+        pre {
+            recent_temp = event:attrs{"recent_temp"}
+            sensor_Rx = event:attrs{"sensor_Rx"}
+
+            report = {"temp":recent_temp,"sensorRx":sensor_Rx}
+        }
+        if recent_temp_report && sensor_Rx then noop()
+        fired {
+            ent:report_log := ent:report_log.defaultsTo(clear_report_log, "report log not set")
+            ent:report_log := ent:report_log.append(report)
+        }
+    }
+
+    rule last_five_reports {
+        select when sensor display_reports
+        pre {
+            num_reports = ent:report_log.length()
+            recent_reports = ent:report_log.slice(num_reports - 6, num_reports - 1)
+        }
+        send_directive("recent reports", recent_reports)
     }
 
     // rule reset_sensor_manager {
