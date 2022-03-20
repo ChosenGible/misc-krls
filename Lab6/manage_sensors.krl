@@ -9,7 +9,7 @@ ruleset manage_sensors {
                 sid = meta:rulesetConfig{"sid"}
                 token = meta:rulesetConfig{"token"}
 
-        shares sensors, sub_sensors, temperatures, threshold_violations, inrange_temperatures, sp_sensor_name, sp_sensor_location, sp_sensor_threshold, sp_alert_phone
+        shares sensors, sub_sensors, temperatures, threshold_violations, inrange_temperatures, sp_sensor_name, sp_sensor_location, sp_sensor_threshold, sp_alert_phone, display_reports
     }
 
     global {
@@ -55,6 +55,11 @@ ruleset manage_sensors {
 
         sub_sensors = function() {
             ent:sensors_subs
+        }
+
+        display_reports = function() {
+            numReports = ent:report_log.length()
+            ent:report_log.slice(numReports - 5, numReports - 1)
         }
 
         //test functions
@@ -238,13 +243,21 @@ ruleset manage_sensors {
 
     rule request_report {
         select when sensor report_request
+        pre {
+            corelation_id = ent:new_id.defaultsTo(0, "new_id not set")
+        }
         always {
             raise wrangler event "send_event_on_subs"
                 attributes {
                     "domain":"sensor",
                     "type":"generate_report",
-                    "Tx_role":"sensor"
+                    "Tx_role":"sensor",
+                    "attrs":{
+                        "core_id":corelation_id
+                    }
+                    
                 }
+            ent:new_id := ent:new_id.defaultsTo(0, "new_id not set") + 1
         }
     }
 
@@ -252,24 +265,15 @@ ruleset manage_sensors {
         select when sensor report
         pre {
             recent_temp = event:attrs{"recent_temp"}
-            sensor_Rx = event:attrs{"sensor_Rx"}
+            core_id = event:attrs{"core_id"}
 
-            report = {"temp":recent_temp,"sensorRx":sensor_Rx}
+            report = {"temp":recent_temp,"sensorRx":meta:eci, "corelation_id":core_id}
         }
-        if recent_temp && sensor_Rx then noop()
+        if recent_temp then noop()
         fired {
             ent:report_log := ent:report_log.defaultsTo(clear_report_log, "report log not set")
             ent:report_log := ent:report_log.append(report)
         }
-    }
-
-    rule last_five_reports {
-        select when sensor display_reports
-        pre {
-            num_reports = ent:report_log.length()
-            recent_reports = ent:report_log.slice(num_reports - 6, num_reports - 1)
-        }
-        send_directive("recent reports", recent_reports)
     }
 
     // rule reset_sensor_manager {

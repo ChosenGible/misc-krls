@@ -66,8 +66,8 @@ ruleset temperature_store {
     rule generate_report {
         select when sensor generate_report
         pre {
-            recent_temp = ent:temperatures.index(ent:temperatures.length() - 1)
-            Rx = subscription:Wellknown_Rx()
+            core_id = event:attrs{"core_id"}
+            recent_temp = ent:temperatures[ent:temperatures.length() - 1]
         }
         always {
             raise wrangler event "send_event_on_subs"
@@ -76,8 +76,8 @@ ruleset temperature_store {
                     "type":"report",
                     "Tx_role":"manager",
                     "attrs":{
-                        "recent_tempt":recent_temp,
-                        "sensor_Rx": Rx
+                        "recent_temp":recent_temp,
+                        "core_id":core_id
                     }
                 }
         }
