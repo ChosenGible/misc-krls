@@ -5,8 +5,8 @@ ruleset sensor_profile {
 
         use module io.picolabs.wrangler alias wrangler
 
-        shares sensor_name, sensor_location, sensor_threshold, alert_phone
-        provides sensor_name, sensor_location, sensor_threshold, alert_phone
+        shares sensor_name, sensor_location, sensor_threshold, alert_phone, sub_list
+        provides sensor_name, sensor_location, sensor_threshold, alert_phone, sub_list
     }
 
     global {
@@ -14,6 +14,8 @@ ruleset sensor_profile {
         clearLocation = "Not Set"
         clearThreshold = "0"
         clearPhone = "+19199997000"
+
+        no_message_num = 0
 
         sensor_name = function(){
             ent:sensorName
@@ -26,6 +28,10 @@ ruleset sensor_profile {
         }
         alert_phone = function(){
             ent:phone
+        }
+
+        sub_list = function(){
+            ent:sub_list
         }
     }
 
@@ -68,13 +74,11 @@ ruleset sensor_profile {
 
     rule setup_subscription {
         select when wrangler inbound_pending_subscription_added
-        pre {
-            extra_info = { "res_sensor_id":ent:sensor_id }
-        }
         if event:attrs{"name"} == "gossip_sub" then noop()
         fired {
             req_sensor_id = event:attrs{"req_sensor_id"}
-            raise wrangler event "pending_subscription_approval" attributes event:attrs.union(extra_info);
+            raise wrangler event "pending_subscription_approval" attributes event:attrs.put("res_sensor_id", ent:sensor_id);
+            ent:sub_list := ent:sub_list.defaultsTo([], "first Sub").append({"sensor_id":req_sensor_id})
         }
     }
 
@@ -103,5 +107,8 @@ ruleset sensor_profile {
             res_sensor_id = event:attrs{"res_sensor_id"}
         }
         if res_sensor_id then noop()
+        fired {
+            ent:sub_list := ent:sub_list.defaultsTo([], "first Sub").append({"sensor_id":res_sensor_id})
+        }
     }
 }

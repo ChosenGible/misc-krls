@@ -53,9 +53,9 @@ ruleset manage_sensors {
             ent:sensors
         }
 
-        sub_sensors = function() {
-            ent:sensors_subs
-        }
+        // sub_sensors = function() {
+        //     ent:sensors_subs
+        // }
 
         display_reports = function() {
             numReports = ent:report_log.length()
@@ -113,7 +113,7 @@ ruleset manage_sensors {
         //wovyn_base_rid = "wovyn_base"
         temperature_store_url = "https://raw.githubusercontent.com/ChosenGible/misc-krls/master/Lab3/temperature_store.krl"
         //temperature_store_rid = "temperature_store"
-        sensor_profile_url = "https://raw.githubusercontent.com/ChosenGible/misc-krls/master/Lab4/sensor_profile.krl"
+        sensor_profile_url = "https://raw.githubusercontent.com/ChosenGible/misc-krls/master/Lab8/sensor_profile.krl"
         //sensor_profile_rid = "sensor_profile_rid"
         emitter_url = "https://raw.githubusercontent.com/windley/temperature-network/main/io.picolabs.wovyn.emitter.krl"
         //emitter_rid = "io.picolabs.wovyn.emitter"
@@ -136,7 +136,7 @@ ruleset manage_sensors {
             raise wrangler event "new_child_request"
                 attributes {
                     "name" : nameFromID(sensor_id),
-                    "backgroundColor" : "#ff0000",
+                    "backgroundColor" : "#6a0dad",
                     "sensor_id" : sensor_id }
         }
     }
