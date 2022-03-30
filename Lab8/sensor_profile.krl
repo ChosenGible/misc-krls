@@ -38,9 +38,9 @@ ruleset sensor_profile {
         Smart Tracker schema:
         {
             {<SID>:
-                {<OSID>:<SeqNum>},
-                ...
-            }
+                {<SID>:<SeqNum>,...}
+            },
+            ...
         }
         */
         smart_tracker = function(){
@@ -48,27 +48,36 @@ ruleset sensor_profile {
         }
 
         /*
-        Rumor schema:
+        Rumor Log schema:
         {
-            {<SID>:[<Message>, ...]},
-            ...
+            {<SID>:
+                {
+                    <MID>:<Rumor>,...
+                }
+            }
         } 
         */
         recorded_rumors = function(){
             ent:rumor_logs
         }
 
-        get_next_seq_num = function(sub, other_sub_id){
-            sub_logs = ent:rumor_logs{sub}
-            get_next_seq_num_rec(sub_logs, other_sub_id, 0)
-        }
+        // get_next_seq_num = function(sensor_id, other_sub_id){
+        //     sub_logs = ent:rumor_logs{sensor_id}
+        //     get_next_seq_num_rec(sub_logs, other_sub_id, 0)
+        // }
 
-        get_next_seq_num_rec = function(sub_logs, other_sub_id, check_num){
-            check_num >< ent:sub_logs.filter(function(v, k){ v{"SensorID"} == other_sub_id }) => get_next_seq_num_rec(sub_logs, other_sub_id, check_num + 1) | check_num
-        }
+        // get_next_seq_num_rec = function(sub_logs, other_sub_id, check_num){
+        //     check_num >< ent:sub_logs.filter(function(v, k){ v{"SensorID"} == other_sub_id }) => get_next_seq_num_rec(sub_logs, other_sub_id, check_num + 1) | check_num
+        // }
 
         get_peer = function(){
-            noop()
+            self_seen = prepare_seen()
+            needy_peers = ent:smart_tracker.filter(function(v,k){
+                missing_sensor = self_seen.filter(function(sv,sk){v{sk} == null})
+                behind_self = self.seen.filter(function(sv,sk){v{sk} < sv})
+                missing_sensor || behind_self
+            })
+            needy_peers.keys()[random:integer(upper = needy_peers.keys().length(), lower = 0)]
         }
 
         /* 
@@ -80,8 +89,9 @@ ruleset sensor_profile {
 
         attrs for rumor:
         {
-            "MessageID" : {<MID>:<SeqNum>},
+            "MessageID" : "<SID>:<SeqNum>",
             "SensorID" : <SID>,
+            "SeqNum" : <SeqNum>,
             "Temperature" : <Temp>,
             "Timestamp" : <Timestamp>
         }
@@ -94,20 +104,44 @@ ruleset sensor_profile {
         
         */
 
-        prepare_rumor = function(sub){
-            noop()
+        prepare_rumor_body = function(sensor_id){
+            sensor_seen = ent:smart_tracker{sensor_id}
+            self_seen = prepare_seen()
+
+            messages_needed = self_seen.filter(function(sv,sk){
+                sensor_seen{sk} == null || sensor_seen{sk} < sv
+            })
+
+            message_selected = messages_needed.keys().head()
+            message_id = message_selected + ":" + messages_needed{message_selected}
+
+            rumor_logs{[message_selected, message_id]}
         }
 
-        prepare_seen = function(sub){
-            noop()
+        prepare_rumor = function(sensor_id){
+            {"type":"rumor", "body":prepare_rumor_body(sensor_id)}
         }
 
-        prepare_message = function(sub){
+        prepare_seen_body = function(){
+            ent:rumor_logs.map(function(v,k) {
+                seq_num = -1
+                seq_message = v.values.reduce(function(a,b) {
+                    b{"SeqNum"} == a{"SeqNum"} + 1 => b | a
+                })
+                seq_message{"SeqNum"}
+            })
+        }
+
+        prepare_seen = function(sensor_id){
+            {"type":"seen","body": prepare_seen_body()}
+        }
+
+        prepare_message = function(sensor_id){
             random:integer(upper = 1, lower = 0) == 1 => prepare_rumor(sub) | prepare_seen(sub)
         }
 
-        send_message = defaction(sub, message){
-            sub_id = ent:sub_list{[sub, "bus", "Id"]}
+        send_message = defaction(sensor_id, message){
+            sub_id = ent:sub_list{[sensor_id, "bus", "Id"]}
             m_type = message{["type"]}
             body = message{["body"]}
 
@@ -126,13 +160,19 @@ ruleset sensor_profile {
             )
         }
 
-        add_rumor_to_log = defaction(sub_id, message){
-            new_rumor_logs = sub_id >< ent:rumor_logs => ent:rumor_logs{sub_id}.append(message) | ent:rumor_logs.put(sub_id, [].append(message))
-            ent:rumor_logs := new_rumor_logs
-        }
-
-        update = defaction(sub, message){
-            noop()
+        update = defaction(sensor_id, message){
+            event:send(
+                {
+                    "eci" : meta:eci,
+                    "domain" : gossip,
+                    "type" : "update_smart_tracker",
+                    "attrs" : {
+                        "type" : message{"type"},
+                        "sensorID":sensor_id,
+                        "message" : message{"body"}
+                    }
+                }
+            )
         }
     }
 
@@ -172,16 +212,22 @@ ruleset sensor_profile {
             origin_id = random:uuid()
             self_seq_num = ent:seq_num.defaultsTo(no_message_num, "first log")
             self_sensor_id = ent:sensor_id
-            message_id = {}.put(self_sensor_id, self_seq_num)
+            message_id = self_sensor_id + ":" + ent:seq_num
 
         }
-        if temp && time then add_rumor_to_log(self_sensor_id, {
-            "MessageID" : message_id,
-            "SensorID" : self_sensor_id,
-            "Temperature" : temp,
-            "Timestamp" : time
-        })
+        if temp && time then noop()
         fired {
+            raise gossip event rumor
+                attributes {
+                    "sensorID":self_sensor_id,
+                    "body": {
+                        "MessageID" : message_id,
+                        "SensorID" : self_sensor_id,
+                        "SeqNum" : self_seq_num,
+                        "Temperature" : temp,
+                        "Timestamp" : time
+                    }
+                }
             ent:seq_num := self_seq_num + 1
         }
     }
@@ -191,6 +237,7 @@ ruleset sensor_profile {
         always {
             ent:sensor_id := random:uuid()
             ent:rumor_logs := {}
+            ent:smart_tracker := []
             period = 30
             schedule gossip event "gossip_heartbeat" repeat << */#{period} * * * * * >> attributes {}
         }
@@ -209,8 +256,67 @@ ruleset sensor_profile {
             }
     }
 
+    rule update_after_rumor_sent {
+        select when gossip update_smart_tracker
+        pre {
+            type = event:attrs{"type"}
+            sensor_id = event:attrs{"sensorID"}
+            message = event:attrs{"message"}
+        }
+        if type == "rumor" then noop()
+        fired {
+            o_sensor_id = message{"SensorID"}
+            new_seq_num = message{"SeqNum"}
+            ent:smart_tracker{[sensor_id, o_sensor_id]} := new_seq_num
+        }
+    }
+
+    rule add_rumor_to_discovered_sensor {
+        select when gossip discovered_new_sensor
+        pre {
+            sensor_id = event:attrs{"SensorID"}
+            rumor = event:attrs{"rumor"}
+        }
+        always {
+            ent:rumor_logs := ent:rumor_logs.put(sensor_id, {}.put(rumor{"MessageID"}, rumor))
+        }
+    }
+
+    rule add_rumor_to_existing_sensor {
+        select when gossip add_rumor_to_sensor
+        pre {
+            sensor_id = event:attrs{"SensorID"}
+            rumor = event:attrs{"rumor"}
+            is_already_logged = rumor{"MessageID"} >< ent:rumor_logs{sensor_id}
+        }
+        if rumor && not is_already_logged then noop()
+        fired {
+            ent:rumor_logs := ent:rumor_logs{sensor_id}.put({}.put(rumor{"MessageID"}, rumor))
+        }
+    }
+
     rule recieved_gossip_rumor {
         select when gossip rumor
+        pre {
+            rumor = event:attrs{"body"}
+            is_existing_sensor = rumor{"SensorID"} >< ent:rumor_logs
+        }
+        if body && is_existing_sensor then noop()
+        fired {
+            //ent:rumor_logs := ent:rumor_logs.append({}.put(rumor{"MessageID"}, rumor))
+            raise gossip event "add_rumor_to_sensor"
+                attributes {
+                    "SensorID" : rumor{"SensorID"},
+                    "rumor" : rumor
+                }
+        }
+        else {
+            raise gossip event "discovered_new_sensor"
+                attributes {
+                    "SensorID" : rumor{"SensorID"},
+                    "rumor" : rumor
+                }
+        }
     }
 
     rule recieved_gossip_seen {
