@@ -9,7 +9,7 @@ ruleset manage_sensors {
                 sid = meta:rulesetConfig{"sid"}
                 token = meta:rulesetConfig{"token"}
 
-        shares sensors, sub_sensors, temperatures, threshold_violations, inrange_temperatures, sp_sensor_name, sp_sensor_location, sp_sensor_threshold, sp_alert_phone, display_reports
+        shares sensors, temperatures, threshold_violations, inrange_temperatures, sp_sensor_name, sp_sensor_location, sp_sensor_threshold, sp_alert_phone, display_reports
     }
 
     global {
