@@ -74,7 +74,7 @@ ruleset sensor_profile {
             self_seen = prepare_seen()
             needy_peers = ent:smart_tracker.filter(function(v,k){
                 missing_sensor = self_seen.filter(function(sv,sk){v{sk} == null})
-                behind_self = self.seen.filter(function(sv,sk){v{sk} < sv})
+                behind_self = self_seen.filter(function(sv,sk){v{sk} < sv})
                 missing_sensor || behind_self
             })
             needy_peers.keys()[random:integer(upper = needy_peers.keys().length(), lower = 0)]
@@ -125,7 +125,7 @@ ruleset sensor_profile {
         prepare_seen_body = function(){
             ent:rumor_logs.map(function(v,k) {
                 seq_num = -1
-                seq_message = v.values.reduce(function(a,b) {
+                seq_message = v.values().reduce(function(a,b) {
                     b{"SeqNum"} == a{"SeqNum"} + 1 => b | a
                 })
                 seq_message{"SeqNum"}
