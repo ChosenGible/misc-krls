@@ -203,9 +203,9 @@ ruleset sensor_profile {
             ent:phone := clearPhone
         }
     }
-
+    // MANUAL MODE
     rule self_temp_log_report {
-        select when wovyn new_temperature_reading
+        select when wovyn new_temperature_reading_manual
         pre {
             temp = event:attrs{"temperature"}
             time = event:attrs{"timestamp"}
@@ -231,6 +231,35 @@ ruleset sensor_profile {
             ent:seq_num := self_seq_num + 1
         }
     }
+
+    // AUTO MODE
+    // rule self_temp_log_report {
+    //     select when wovyn new_temperature_reading
+    //     pre {
+    //         temp = event:attrs{"temperature"}
+    //         time = event:attrs{"timestamp"}
+    //         origin_id = random:uuid()
+    //         self_seq_num = ent:seq_num.defaultsTo(no_message_num, "first log")
+    //         self_sensor_id = ent:sensor_id
+    //         message_id = self_sensor_id + ":" + ent:seq_num
+
+    //     }
+    //     if temp && time then noop()
+    //     fired {
+    //         raise gossip event rumor
+    //             attributes {
+    //                 "sensorID":self_sensor_id,
+    //                 "body": {
+    //                     "MessageID" : message_id,
+    //                     "SensorID" : self_sensor_id,
+    //                     "SeqNum" : self_seq_num,
+    //                     "Temperature" : temp,
+    //                     "Timestamp" : time
+    //                 }
+    //             }
+    //         ent:seq_num := self_seq_num + 1
+    //     }
+    // }
 
     rule initialize_ruleset {
         select when wrangler ruleset_installed where event:attr("rids") >< meta:rid
