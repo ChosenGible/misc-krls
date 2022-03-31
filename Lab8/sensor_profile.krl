@@ -300,29 +300,30 @@ ruleset sensor_profile {
         }
     }
 
-    rule add_rumor_to_discovered_sensor {
-        select when gossip discovered_new_sensor
-        pre {
-            sensor_id = event:attrs{"SensorID"}
-            rumor = event:attrs{"rumor"}
-        }
-        always {
-            ent:rumor_logs := ent:rumor_logs.put(sensor_id, {}.put(rumor{"MessageID"}, rumor))
-        }
-    }
+    // rule add_rumor_to_discovered_sensor {
+    //     select when gossip discovered_new_sensor
+    //     pre {
+    //         sensor_id = event:attrs{"SensorID"}
+    //         rumor = event:attrs{"rumor"}
+    //     }
+    //     always {
+    //         ent:rumor_logs := ent:rumor_logs.put(sensor_id, {}.put(rumor{"MessageID"}, rumor))
+    //     }
+    // }
 
-    rule add_rumor_to_existing_sensor {
-        select when gossip add_rumor_to_sensor
-        pre {
-            sensor_id = event:attrs{"SensorID"}
-            rumor = event:attrs{"rumor"}
-            is_already_logged = rumor{"MessageID"} >< ent:rumor_logs{sensor_id}
-        }
-        if rumor && not is_already_logged then noop()
-        fired {
-            ent:rumor_logs := ent:rumor_logs{sensor_id}.put({}.put(rumor{"MessageID"}, rumor))
-        }
-    }
+    // rule add_rumor_to_existing_sensor {
+    //     select when gossip add_rumor_to_sensor
+    //     pre {
+    //         sensor_id = event:attrs{"SensorID"}
+    //         rumor = event:attrs{"rumor"}
+    //         is_already_logged = rumor{"MessageID"} >< ent:rumor_logs{sensor_id}
+    //     }
+    //     if rumor && not is_already_logged then noop()
+    //     fired {
+    //         sensor_logs = ent:rumor_logs{sensor_id}
+    //         ent:rumor_logs{sensor_id} := sensor_logs.put(rumor{"MessageID"}, rumor)
+    //     }
+    // }
 
     rule recieved_gossip_rumor {
         select when gossip rumor
@@ -335,7 +336,7 @@ ruleset sensor_profile {
         if rumor then noop()
         //if rumor && is_existing_sensor then noop()
         fired {
-            ent:rumor_logs{sensor_id} := {}.put(message_id, rumor)
+            ent:rumor_logs{sensor_id} := sensor_logs.put(message_id, rumor)
         }
     }
     //         raise gossip event "add_rumor_to_sensor"
