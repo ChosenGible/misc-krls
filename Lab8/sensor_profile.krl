@@ -4,6 +4,7 @@ ruleset sensor_profile {
         author "Alex Brown"
 
         use module io.picolabs.wrangler alias wrangler
+        use module io.picolabs.subscription alias subs
 
         shares sensor_name, sensor_location, sensor_threshold, alert_phone, sub_list, smart_tracker, recorded_rumors, get_peer, prepare_rumor, prepare_seen
         provides sensor_name, sensor_location, sensor_threshold, alert_phone, sub_list, smart_tracker, recorded_rumors, get_peer, prepare_rumor, prepare_seen
@@ -78,7 +79,7 @@ ruleset sensor_profile {
                 missing_sensor || behind_self
             })
             choice = needy_peers.keys()[random:integer(upper = needy_peers.keys().length() - 1, lower = 0)]
-            choice => choice | ent:sub_list.keys()[random:integer(upper = ent:sub_list.keys().length() - 1, lower = 0)] // incase we have not gotten any smart_trackers yet
+            choice => choice | subs:established()[random:integer(upper = subs:established().length() - 1, lower = 0)]{"Id"} // incase we have not gotten any smart_trackers yet
         }
 
         /* 
@@ -106,15 +107,15 @@ ruleset sensor_profile {
         */
 
         prepare_rumor_body = function(sensor_id){
-            sensor_seen = ent:smart_tracker{sensor_id}
-            self_seen = prepare_seen()
+            sensor_seen = ent:smart_tracker{sensor_id}.klog("0") // this is null wait
+            self_seen = prepare_seen_body().klog("1")
 
             messages_needed = self_seen.filter(function(sv,sk){
                 sensor_seen{sk} == null || sensor_seen{sk} < sv
-            })
+            }).klog("2")
 
-            message_selected = messages_needed.keys().head()
-            message_id = message_selected + ":" + messages_needed{message_selected}
+            message_selected = messages_needed.keys().head().klog("3")
+            message_id = message_selected + ":" + (sensor_seen{message_selected}.defaultsTo(-1, "Code is better readable") + 1)
 
             ent:rumor_logs{[message_selected, message_id]}
         }
@@ -141,40 +142,40 @@ ruleset sensor_profile {
             random:integer(upper = 1, lower = 0) == 1 => prepare_rumor(sensor_id) | prepare_seen(sensor_id)
         }
 
-        send_message = defaction(sensor_id, message){
-            sub_id = ent:sub_list{[sensor_id, "bus", "Id"]}
-            m_type = message{["type"]}
-            body = message{["body"]}
+    //     send_message = defaction(sensor_id, message){
+    //         sub_id = ent:sub_list{[sensor_id, "bus", "Id"]}
+    //         m_type = message{["type"]}
+    //         body = message{["body"]}
 
-            event:send(
-                {
-                    "eci" : meta:eci,
-                    "domain" : "wrangler",
-                    "type" : "send_event_on_subs",
-                    "attrs" : {
-                        "domain" : "gossip",
-                        "type" : m_type,
-                        "subID" : sub_id,
-                        "attrs" : {"sensorID" : ent:sensor_id, "body" : body}
-                    }
-                }
-            )
-        }
+    //         event:send(
+    //             {
+    //                 "eci" : meta:eci,
+    //                 "domain" : "wrangler",
+    //                 "type" : "send_event_on_subs",
+    //                 "attrs" : {
+    //                     "domain" : "gossip",
+    //                     "type" : m_type,
+    //                     "subID" : sub_id,
+    //                     "attrs" : {"body" : body}
+    //                 }
+    //             }
+    //         )
+    //     }
 
-        update = defaction(sensor_id, message){
-            event:send(
-                {
-                    "eci" : meta:eci,
-                    "domain" : "gossip",
-                    "type" : "update_smart_tracker",
-                    "attrs" : {
-                        "type" : message{"type"},
-                        "sensorID":sensor_id,
-                        "message" : message{"body"}
-                    }
-                }
-            )
-        }
+    //     update = defaction(sensor_id, message){
+    //         event:send(
+    //             {
+    //                 "eci" : meta:eci,
+    //                 "domain" : "gossip",
+    //                 "type" : "update_smart_tracker",
+    //                 "attrs" : {
+    //                     "type" : message{"type"},
+    //                     "sensorID":sensor_id,
+    //                     "message" : message{"body"}
+    //                 }
+    //             }
+    //         )
+    //     }
     }
 
     rule sensor_update {
@@ -268,7 +269,7 @@ ruleset sensor_profile {
             ent:sensor_id := random:uuid()
             ent:rumor_logs := {}
             ent:smart_tracker := {}
-            period = 30
+            period = 5
             schedule gossip event "gossip_heartbeat" repeat << */#{period} * * * * * >> attributes {}
         }
     }
@@ -276,16 +277,15 @@ ruleset sensor_profile {
     rule send_gossip_message {
         select when gossip gossip_heartbeat
         pre {
-            g_sub_id = get_peer()
-            message = prepare_message(g_sub_id)
+            sub_id = get_peer()
+            message = prepare_message(sub_id)
         }
-        if g_sub_id then noop()
+        if sub_id then noop()
             //every {
                 //send_message(g_sub_id, message)
                 //update(g_sub_id, message)
             //}
         fired {
-            sub_id = ent:sub_list{[g_sub_id, "bus", "Id"]}
             m_type = message{["type"]}
             body = message{["body"]}
             raise wrangler event "send_event_on_subs"
@@ -293,14 +293,14 @@ ruleset sensor_profile {
                     "domain" : "gossip",
                     "type" : m_type,
                     "subID" : sub_id,
-                    "attrs" : {"sensorID" : ent:sensor_id, "body" : body}
-                }
+                    "attrs" : {"body":body}
+                } if(body)
             raise gossip event "update_smart_tracker" 
                 attributes {
                     "type" : m_type,
-                    "sensorID":g_sub_id,
+                    "sensorID":sub_id,
                     "message" : body
-                }
+                } if (body)
         }
     }
 
@@ -337,53 +337,54 @@ ruleset sensor_profile {
     rule recieved_gossip_seen {
         select when gossip seen
         pre {
-            o_sensor_id = event:attrs{"sensorID"}
+            TX = subs:established().filter(function(v,k){v{"Rx"} == meta:eci}).head(){"Id"}
+            //o_sensor_id = event:attrs{"sensorID"}
             body = event:attrs{"body"}
         }
         if body then noop()
         fired {
-            ent:smart_tracker{o_sensor_id} := body
+            ent:smart_tracker{TX} := body
         }
     }
 
-    rule setup_subscription {
-        select when wrangler inbound_pending_subscription_added
-        if event:attrs{"name"} == "gossip_sub" then noop()
-        fired {
-            req_sensor_id = event:attrs{"req_sensor_id"}
-            raise wrangler event "pending_subscription_approval" attributes event:attrs.put("res_sensor_id", ent:sensor_id);
-        }
-    }
+    // rule setup_subscription {
+    //     select when wrangler inbound_pending_subscription_added
+    //     if event:attrs{"name"} == "gossip_sub" then noop()
+    //     fired {
+    //         req_sensor_id = event:attrs{"req_sensor_id"}
+    //         raise wrangler event "pending_subscription_approval" attributes event:attrs.put("res_sensor_id", ent:sensor_id);
+    //     }
+    // }
 
-    rule request_subscription {
-        select when gossip setup_new_subscription
-        pre {
-            wellknownRx = event:attrs{"wellknownRx"}
-            sensor_id = ent:sensor_id
-        }
-        always {
-            raise wrangler event "subscription"
-                attributes {
-                    "name":"gossip_sub",
-                    "channel_type":meta:rid,        
-                    "wellKnown_Tx": wellknownRx,
-                    "req_sensor_id": sensor_id,           
-                    "Rx_role":"gossip_node",
-                    "Tx_role":"gossip_node"
-                }
-        }
-    }
+    // rule request_subscription {
+    //     select when gossip setup_new_subscription
+    //     pre {
+    //         wellknownRx = event:attrs{"wellknownRx"}
+    //         sensor_id = ent:sensor_id
+    //     }
+    //     always {
+    //         raise wrangler event "subscription"
+    //             attributes {
+    //                 "name":"gossip_sub",
+    //                 "channel_type":meta:rid,        
+    //                 "wellKnown_Tx": wellknownRx,
+    //                 "req_sensor_id": sensor_id,           
+    //                 "Rx_role":"gossip_node",
+    //                 "Tx_role":"gossip_node"
+    //             }
+    //     }
+    // }
 
-    rule subscription_added {
-        select when wrangler subscription_added
-        pre {
-            res_sensor_id = event:attrs{"res_sensor_id"}
-        }
-        if res_sensor_id then noop()
-        fired {
-            ent:sub_list := ent:sub_list.defaultsTo({}, "first Sub").put(res_sensor_id, event:attrs{"bus"})
-        }
-    }
+    // rule subscription_added {
+    //     select when wrangler subscription_added
+    //     pre {
+    //         res_sensor_id = event:attrs{"res_sensor_id"}
+    //     }
+    //     if res_sensor_id then noop()
+    //     fired {
+    //         ent:sub_list := ent:sub_list.defaultsTo({}, "first Sub").put(res_sensor_id, event:attrs{"bus"})
+    //     }
+    // }
 
     rule clear_logs {
         select when debug clear_rumor_logs
