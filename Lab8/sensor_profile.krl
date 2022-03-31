@@ -278,7 +278,7 @@ ruleset sensor_profile {
             g_sub_id = get_peer()
             message = prepare_message(g_sub_id)
         }
-        if g_sub_id && (g_sub_id >< ent:sub_list) then
+        if g_sub_id then
             every {
                 send_message(g_sub_id, message)
                 update(g_sub_id, message)
