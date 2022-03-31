@@ -5,8 +5,8 @@ ruleset sensor_profile {
 
         use module io.picolabs.wrangler alias wrangler
 
-        shares sensor_name, sensor_location, sensor_threshold, alert_phone, sub_list
-        provides sensor_name, sensor_location, sensor_threshold, alert_phone, sub_list
+        shares sensor_name, sensor_location, sensor_threshold, alert_phone, sub_list, smart_tracker, recorded_rumors, get_peer, prepare_rumor, prepare_seen
+        provides sensor_name, sensor_location, sensor_threshold, alert_phone, sub_list, smart_tracker, recorded_rumors, get_peer, prepare_rumor, prepare_seen
     }
 
     global {
