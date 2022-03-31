@@ -262,7 +262,7 @@ ruleset sensor_profile {
     // }
 
     rule initialize_ruleset {
-        select when wrangler ruleset_installed where event:attr{"rids"} >< meta:rid
+        select when wrangler ruleset_installed where event:attrs{"rids"} >< meta:rid
         always {
             ent:sensor_id := random:uuid()
             ent:rumor_logs := {}
