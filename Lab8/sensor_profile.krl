@@ -328,25 +328,29 @@ ruleset sensor_profile {
         select when gossip rumor
         pre {
             rumor = event:attrs{"body"}
-            is_existing_sensor = rumor{"SensorID"} >< ent:rumor_logs
+            sensor_id = rumor{"SensorID"}
+            message_id = rumor{"MessageID"}
+            is_existing_sensor = sensor_id >< ent:rumor_logs
         }
         if rumor && is_existing_sensor then noop()
         fired {
-            //ent:rumor_logs := ent:rumor_logs.append({}.put(rumor{"MessageID"}, rumor))
-            raise gossip event "add_rumor_to_sensor"
-                attributes {
-                    "SensorID" : rumor{"SensorID"},
-                    "rumor" : rumor
-                }
-        }
-        else {
-            raise gossip event "discovered_new_sensor"
-                attributes {
-                    "SensorID" : rumor{"SensorID"},
-                    "rumor" : rumor
-                }
+            ent:rumor_logs{sensor_id} := {}.put(message_id, rumor)
         }
     }
+    //         raise gossip event "add_rumor_to_sensor"
+    //             attributes {
+    //                 "SensorID" : rumor{"SensorID"},
+    //                 "rumor" : rumor
+    //             }
+    //     }
+    //     else {
+    //         raise gossip event "discovered_new_sensor"
+    //             attributes {
+    //                 "SensorID" : rumor{"SensorID"},
+    //                 "rumor" : rumor
+    //             }
+    //     }
+    // }
 
     rule recieved_gossip_seen {
         select when gossip seen
