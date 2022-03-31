@@ -336,7 +336,7 @@ ruleset sensor_profile {
         if rumor then noop()
         //if rumor && is_existing_sensor then noop()
         fired {
-            sensor_logs = ent:rumor_logs{sensor_id}
+            sensor_logs = ent:rumor_logs{sensor_id}.defaultsTo({}, "first sensor log")
             ent:rumor_logs{sensor_id} := sensor_logs.put(message_id, rumor)
         }
     }
