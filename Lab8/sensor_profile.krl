@@ -266,7 +266,7 @@ ruleset sensor_profile {
         always {
             ent:sensor_id := random:uuid()
             ent:rumor_logs := {}
-            ent:smart_tracker := []
+            ent:smart_tracker := {}
             period = 30
             schedule gossip event "gossip_heartbeat" repeat << */#{period} * * * * * >> attributes {}
         }
@@ -396,6 +396,20 @@ ruleset sensor_profile {
         if res_sensor_id then noop()
         fired {
             ent:sub_list := ent:sub_list.defaultsTo({}, "first Sub").put(res_sensor_id, event:attrs{"bus"})
+        }
+    }
+
+    rule clear_logs {
+        select when debug clear_rumor_logs
+        always {
+            ent:rumor_logs := {}
+        }
+    }
+
+    rule clear_smart_tracker {
+        select when debug clear_smart_tracker
+        always {
+            ent:smart_tracker := {}
         }
     }
 }
