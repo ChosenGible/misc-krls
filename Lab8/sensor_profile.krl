@@ -212,7 +212,7 @@ ruleset sensor_profile {
             origin_id = random:uuid()
             self_seq_num = ent:seq_num.defaultsTo(no_message_num, "first log")
             self_sensor_id = ent:sensor_id
-            message_id = self_sensor_id + ":" + ent:seq_num
+            message_id = self_sensor_id + ":" + ent:seq_num.defaultsTo(0, "first log")
 
         }
         if temp && time then noop()
@@ -410,6 +410,13 @@ ruleset sensor_profile {
         select when debug clear_smart_tracker
         always {
             ent:smart_tracker := {}
+        }
+    }
+
+    rule clear_seq_num {
+        select when debug clear_seq_num 
+        always {
+            ent:seq_num := 0
         }
     }
 }
