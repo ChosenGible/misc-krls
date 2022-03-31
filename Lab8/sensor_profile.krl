@@ -77,7 +77,8 @@ ruleset sensor_profile {
                 behind_self = self_seen.filter(function(sv,sk){v{sk} < sv})
                 missing_sensor || behind_self
             })
-            needy_peers.keys()[random:integer(upper = needy_peers.keys().length(), lower = 0)]
+            choice = needy_peers.keys()[random:integer(upper = needy_peers.keys().length(), lower = 0)]
+            choice => choice | ent:sub_list.keys()[random:integer(upper = ent:sub_list.keys().length(), lower = 0)] // incase we have not gotten any smart_trackers yet
         }
 
         /* 
@@ -278,7 +279,7 @@ ruleset sensor_profile {
             g_sub_id = get_peer()
             message = prepare_message(g_sub_id)
         }
-        if g_sub_id then
+        if g_sub_id && (g_sub_id >< ent:sub_list) then
             every {
                 send_message(g_sub_id, message)
                 update(g_sub_id, message)
