@@ -278,7 +278,7 @@ ruleset sensor_profile {
             g_sub_id = get_peer()
             message = prepare_message(g_sub_id)
         }
-        if g_sub_id && g_sub_id >< ent:sub_list then
+        if g_sub_id && (g_sub_id >< ent:sub_list) then
             every {
                 send_message(g_sub_id, message)
                 update(g_sub_id, message)
@@ -300,31 +300,6 @@ ruleset sensor_profile {
         }
     }
 
-    // rule add_rumor_to_discovered_sensor {
-    //     select when gossip discovered_new_sensor
-    //     pre {
-    //         sensor_id = event:attrs{"SensorID"}
-    //         rumor = event:attrs{"rumor"}
-    //     }
-    //     always {
-    //         ent:rumor_logs := ent:rumor_logs.put(sensor_id, {}.put(rumor{"MessageID"}, rumor))
-    //     }
-    // }
-
-    // rule add_rumor_to_existing_sensor {
-    //     select when gossip add_rumor_to_sensor
-    //     pre {
-    //         sensor_id = event:attrs{"SensorID"}
-    //         rumor = event:attrs{"rumor"}
-    //         is_already_logged = rumor{"MessageID"} >< ent:rumor_logs{sensor_id}
-    //     }
-    //     if rumor && not is_already_logged then noop()
-    //     fired {
-    //         sensor_logs = ent:rumor_logs{sensor_id}
-    //         ent:rumor_logs{sensor_id} := sensor_logs.put(rumor{"MessageID"}, rumor)
-    //     }
-    // }
-
     rule recieved_gossip_rumor {
         select when gossip rumor
         pre {
@@ -334,26 +309,11 @@ ruleset sensor_profile {
             is_existing_sensor = sensor_id >< ent:rumor_logs
         }
         if rumor then noop()
-        //if rumor && is_existing_sensor then noop()
         fired {
             sensor_logs = ent:rumor_logs{sensor_id}.defaultsTo({}, "first sensor log")
             ent:rumor_logs{sensor_id} := sensor_logs.put(message_id, rumor)
         }
     }
-    //         raise gossip event "add_rumor_to_sensor"
-    //             attributes {
-    //                 "SensorID" : rumor{"SensorID"},
-    //                 "rumor" : rumor
-    //             }
-    //     }
-    //     else {
-    //         raise gossip event "discovered_new_sensor"
-    //             attributes {
-    //                 "SensorID" : rumor{"SensorID"},
-    //                 "rumor" : rumor
-    //             }
-    //     }
-    // }
 
     rule recieved_gossip_seen {
         select when gossip seen
