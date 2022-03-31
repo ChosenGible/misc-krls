@@ -115,7 +115,7 @@ ruleset sensor_profile {
             message_selected = messages_needed.keys().head()
             message_id = message_selected + ":" + messages_needed{message_selected}
 
-            rumor_logs{[message_selected, message_id]}
+            ent:rumor_logs{[message_selected, message_id]}
         }
 
         prepare_rumor = function(sensor_id){
@@ -137,7 +137,7 @@ ruleset sensor_profile {
         }
 
         prepare_message = function(sensor_id){
-            random:integer(upper = 1, lower = 0) == 1 => prepare_rumor(sub) | prepare_seen(sub)
+            random:integer(upper = 1, lower = 0) == 1 => prepare_rumor(sensor_id) | prepare_seen(sensor_id)
         }
 
         send_message = defaction(sensor_id, message){
@@ -164,7 +164,7 @@ ruleset sensor_profile {
             event:send(
                 {
                     "eci" : meta:eci,
-                    "domain" : gossip,
+                    "domain" : "gossip",
                     "type" : "update_smart_tracker",
                     "attrs" : {
                         "type" : message{"type"},
@@ -217,7 +217,7 @@ ruleset sensor_profile {
         }
         if temp && time then noop()
         fired {
-            raise gossip event rumor
+            raise gossip event "rumor"
                 attributes {
                     "sensorID":self_sensor_id,
                     "body": {
@@ -330,7 +330,7 @@ ruleset sensor_profile {
             rumor = event:attrs{"body"}
             is_existing_sensor = rumor{"SensorID"} >< ent:rumor_logs
         }
-        if body && is_existing_sensor then noop()
+        if rumor && is_existing_sensor then noop()
         fired {
             //ent:rumor_logs := ent:rumor_logs.append({}.put(rumor{"MessageID"}, rumor))
             raise gossip event "add_rumor_to_sensor"
