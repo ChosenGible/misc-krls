@@ -77,8 +77,8 @@ ruleset sensor_profile {
                 behind_self = self_seen.filter(function(sv,sk){v{sk} < sv})
                 missing_sensor || behind_self
             })
-            choice = needy_peers.keys()[random:integer(upper = needy_peers.keys().length(), lower = 0)]
-            choice => choice | ent:sub_list.keys()[random:integer(upper = ent:sub_list.keys().length(), lower = 0)] // incase we have not gotten any smart_trackers yet
+            choice = needy_peers.keys()[random:integer(upper = needy_peers.keys().length() - 1, lower = 0)]
+            choice => choice | ent:sub_list.keys()[random:integer(upper = ent:sub_list.keys().length() - 1, lower = 0)] // incase we have not gotten any smart_trackers yet
         }
 
         /* 
@@ -279,11 +279,29 @@ ruleset sensor_profile {
             g_sub_id = get_peer()
             message = prepare_message(g_sub_id)
         }
-        if g_sub_id then
-            every {
-                send_message(g_sub_id, message)
-                update(g_sub_id, message)
-            }
+        if g_sub_id then noop()
+            //every {
+                //send_message(g_sub_id, message)
+                //update(g_sub_id, message)
+            //}
+        fired {
+            sub_id = ent:sub_list{[g_sub_id, "bus", "Id"]}
+            m_type = message{["type"]}
+            body = message{["body"]}
+            raise wrangler event "send_event_on_subs"
+                attributes {
+                    "domain" : "gossip",
+                    "type" : m_type,
+                    "subID" : sub_id,
+                    "attrs" : {"sensorID" : ent:sensor_id, "body" : body}
+                }
+            raise gossip event "update_smart_tracker" 
+                attributes {
+                    "type" : m_type,
+                    "sensorID":g_sub_id,
+                    "message" : body
+                }
+        }
     }
 
     rule update_after_rumor_sent {
