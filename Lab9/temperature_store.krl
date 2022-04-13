@@ -23,7 +23,7 @@ ruleset temperature_store {
         }
 
         violation_status = function(){
-            ent:violation_status
+            ent:violation_status.defaultsTo(0, "Lol not set")
         }
 
     }

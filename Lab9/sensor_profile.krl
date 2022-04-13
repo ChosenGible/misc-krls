@@ -7,8 +7,8 @@ ruleset sensor_profile {
         use module io.picolabs.subscription alias subs
         use module temperature_store alias store
 
-        shares sensor_name, sensor_location, sensor_threshold, alert_phone, sub_list, smart_tracker, recorded_rumors, get_peer, prepare_rumor, prepare_seen, prepare_violation_message, current_violating_sensors
-        provides sensor_name, sensor_location, sensor_threshold, alert_phone, sub_list, smart_tracker, recorded_rumors, get_peer, prepare_rumor, prepare_seen, prepare_violation_message, current_violating_sensors
+        shares sensor_name, sensor_location, sensor_threshold, alert_phone, sub_list, smart_tracker, recorded_rumors, get_peer, prepare_rumor, prepare_seen, prepare_violation_message, current_violating_sensors, violation_tracker
+        provides sensor_name, sensor_location, sensor_threshold, alert_phone, sub_list, smart_tracker, recorded_rumors, get_peer, prepare_rumor, prepare_seen, prepare_violation_message, current_violating_sensors, violation_tracker
     }
 
     global {
@@ -99,8 +99,8 @@ ruleset sensor_profile {
 
         get_peer_violation = function(current_violation_status) {
             needy_peers = ent:violation_tracker.filter(function(v,k){
-                current_violation_status != v
-            })
+                not(current_violation_status == v)
+            }).klog("needy_peers:")
             needy_peers.length() > 0 => needy_peers.keys()[random:integer(upper = needy_peers.keys().length() - 1, lower = 0)] | subs:established()[random:integer(upper = subs:established().length() - 1, lower = 0)]{"Id"}
         }
 
@@ -163,7 +163,8 @@ ruleset sensor_profile {
         }
 
         prepare_violation_body = function(sub_id, violation_status) {
-            old_violation_status = ent:violation_tracker{sub_id}
+            dummy = violation_status.klog()
+            old_violation_status = ent:violation_tracker{sub_id}.defaultsTo(0, "lol no reports yet so assume 0").klog()
             violation_status == old_violation_status => 0 | violation_status => 1 | -1
         }
 
@@ -306,6 +307,7 @@ ruleset sensor_profile {
             ent:sensor_id := random:uuid()
             ent:rumor_logs := {}
             ent:smart_tracker := {}
+            ent:violation_tracker := {}
             ent:active_violations := 0
             period = 5
             schedule gossip event "gossip_heartbeat" repeat << */#{period} * * * * * >> attributes {}
@@ -340,9 +342,9 @@ ruleset sensor_profile {
     rule send_threshold_message {
         select when gossip gossip_threshold_message
         pre {
-            violation_status = store:violation_status()
-            sub_id = get_peer_violation(violation_status)
-            message = prepare_violation_message(sub_id, violation_status)
+            violation_status = store:violation_status().klog("here 1")
+            sub_id = get_peer_violation(violation_status).klog("here 2")
+            message = prepare_violation_message(sub_id, violation_status).klog("here 3")
         }
         if sub_id then noop()
         fired {
@@ -509,10 +511,24 @@ ruleset sensor_profile {
         }
     }
 
+    rule clear_threshold_tracker {
+        select when debug clear_threshold_tracker
+        always {
+            ent:violation_tracker := {}
+        }
+    }
+
     rule clear_seq_num {
         select when debug clear_seq_num 
         always {
             ent:seq_num := 0
+        }
+    }
+
+    rule clear_active_violations {
+        select when debug clear_active_violations
+        always {
+            ent:active_violations := 0
         }
     }
 }
