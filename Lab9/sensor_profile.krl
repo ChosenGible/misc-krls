@@ -7,8 +7,8 @@ ruleset sensor_profile {
         use module io.picolabs.subscription alias subs
         use module temperature_store alias store
 
-        shares smart_tracker, recorded_rumors, get_peer, prepare_rumor, prepare_seen, prepare_violation_message, violation_rumors, violation_tracker, get_peer_violation, violation_tracker_per_sub, num_current_violations
-        provides smart_tracker, recorded_rumors, get_peer, prepare_rumor, prepare_seen, prepare_violation_message, violation_rumors, violation_tracker, get_peer_violation, violation_tracker_per_sub, num_current_violations
+        shares self_sensor_id, smart_tracker, recorded_rumors, prepare_violation_seen_body, prepare_violation_message, violation_rumors, sum_sensor_violations, violation_tracker, get_peer_violation, violation_tracker_per_sub, num_current_violations
+        provides self_sensor_id, smart_tracker, recorded_rumors, prepare_violation_seen_body, prepare_violation_message, violation_rumors, sum_sensor_violations, violation_tracker, get_peer_violation, violation_tracker_per_sub, num_current_violations
     }
 
     global {
@@ -17,18 +17,21 @@ ruleset sensor_profile {
         clearThreshold = "0"
         clearPhone = "+19199997000"
 
-        no_message_num = 0
-
          /*
         threshold_rumors
         {
             <SID>:
                 {
-                    <SeqNum>:<StatusIncrement>
+                    <MID>: {"Increment":<StatusIncrement>,"SeqNum":<SeqNum>}
+                    ...
                 },
             
         }
         */
+        self_sensor_id = function(){
+            ent:sensor_id
+        }
+
         violation_rumors = function() {
             ent:violations
         }
@@ -38,7 +41,7 @@ ruleset sensor_profile {
         }
 
         num_current_violations = function() {
-            ent:violations.map(v,k) {sum_sensor_violations(k)}.values().reduce(function(a,b){a + b})
+            ent:violations.map(function(v,k){sum_sensor_violations(k)}).values().reduce(function(a,b){a + b})
         }
 
         /*
@@ -105,13 +108,15 @@ ruleset sensor_profile {
             choice => choice | subs:established()[random:integer(upper = subs:established().length() - 1, lower = 0)]{"Id"} // incase we have not gotten any smart_trackers yet
         }
 
-        //TODO REDO
-        get_peer_violation = function(current_violation_status) {
+        get_peer_violation = function() {
+            self_violations_seen = prepare_violation_seen_body().klog("gpv 0")
             needy_peers = ent:violation_tracker.filter(function(v,k){
-                not(current_violation_status == v)
-            }).klog("needy_peers:")
-            choice = needy_peers.length() > 0 => needy_peers.keys()[random:integer(upper = needy_peers.keys().length() - 1, lower = 0)] | subs:established()[random:integer(upper = subs:established().length() - 1, lower = 0)]{"Id"}
-            choice.klog()
+                missing_sensor = self_violations_seen.filter(function(sv,sk){v{sk} == null}).klog("gpv 1")
+                behind_self = self_violations_seen.filter(function(sv,sk){v{sk} < sv}).klog("gpv 2")
+                missing_sensor || behind_self
+            })
+            choice = needy_peers.keys()[random:integer(upper = needy_peers.keys().length() - 1, lower = 0)].klog("gpv 3")
+            choice => choice | subs:established()[random:integer(upper = subs:established().length() - 1, lower = 0)]{"Id"}
         }
 
         /* 
@@ -139,6 +144,7 @@ ruleset sensor_profile {
         attrs for violation_increment
         {
             "SensorID" : <SID>,
+            "MessageID" : <MID>,
             "SeqNum" : <SeqNum>,
             "Increment" : <StatusIncrement>
         }
@@ -170,7 +176,6 @@ ruleset sensor_profile {
 
         prepare_seen_body = function(){
             ent:rumor_logs.map(function(v,k) {
-                seq_num = -1
                 seq_message = v.values().reduce(function(a,b) {
                     b{"SeqNum"} == a{"SeqNum"} + 1 => b | a
                 })
@@ -187,15 +192,15 @@ ruleset sensor_profile {
         }
 
         prepare_violation_rumor_body_json = function(sid, seq_num){
-            {"SensorID":sid, "SeqNum": seq_num, "Increment": ent:violations{[sid, seq_num]}}  
+            {"SensorID":sid, "MessageID": sid + ":" + seq_num, "SeqNum":seq_num, "Increment": ent:violations{[sid, seq_num]}}  
         }
 
         prepare_violation_rumor_body = function(sensor_id) {
             sensor_violations_seen = ent:violation_tracker{sensor_id}
             self_violations_seen = prepare_violation_seen_body()
 
-            messages_need = self_violations_seen.filter(function(sv,sk){
-                sensor_violations_seen{sk} == null || sensor_seen{sk} < sv
+            messages_needed = self_violations_seen.filter(function(sv,sk){
+                sensor_violations_seen{sk} == null || sensor_violations_seen{sk} < sv
             })
 
             message_selected_sid = messages_needed.keys().head()
@@ -204,14 +209,14 @@ ruleset sensor_profile {
         }
 
         prepare_violation_rumor = function(sensor_id){            
-            {"type":"violation_rumor", "body": {"status": prepare_violation_body(sensor_id)} }
+            {"type":"violation_rumor", "body": prepare_violation_rumor_body(sensor_id)}
         }
 
         prepare_violation_seen_body = function(){
             ent:violations.map(function(v,k) {
                 seq_num = -1
                 seq_message = v.keys().reduce(function(a,b) {
-                    b == a + 1 => b | a
+                    (b.as("Number") == a.as("Number") + 1) => b | a
                 })
                 seq_message
             })
@@ -329,35 +334,25 @@ ruleset sensor_profile {
             temp = event:attrs{"temperature"}
             time = event:attrs{"timestamp"}
             origin_id = random:uuid()
-            self_seq_num = ent:seq_num.defaultsTo(no_message_num, "first log")
             self_sensor_id = ent:sensor_id
-            message_id = self_sensor_id + ":" + ent:seq_num
-            self_thresh_seq_num = ent:thresh_seq_num.defaultsTo(no_message_num, "first log")
+            self_thresh_seq_num = ent:thresh_seq_num.defaultsTo(0, "first log").klog()
             self_increment = sum_sensor_violations(self_sensor_id) == store:violation_status() => 0 | store:violation_status() => 1 | -1
+            thresh_message_id = self_sensor_id + ":" + self_thresh_seq_num
 
         }
         if temp && time then noop()
         fired {
-            raise gossip event "rumor"
-                attributes {
-                    "sensorID":self_sensor_id,
-                    "body": {
-                        "MessageID" : message_id,
-                        "SensorID" : self_sensor_id,
-                        "SeqNum" : self_seq_num,
-                        "Temperature" : temp,
-                        "Timestamp" : time
-                    }
-                }
             raise gossip event "violation_rumor"
                 attributes {
                     "sensorID":self_sensor_id,
                     "body": {
                         "SensorID": self_sensor_id,
-                        "SeqNum": self_thresh_seq_num,
+                        "MessageID": thresh_message_id,
+                        "SeqNum" : self_thresh_seq_num,
                         "Increment" : self_increment
                     }
                 }
+            ent:thresh_seq_num := ent:thresh_seq_num + 1
          }
     }
 
@@ -369,8 +364,10 @@ ruleset sensor_profile {
             ent:smart_tracker := {}
             ent:violation_tracker := {}
             ent:violations := {}
+            ent:thresh_seq_num := 0
             period = 0
-            schedule gossip event "gossip_heartbeat" repeat << */#{period} * * * * * >> attributes {}
+            schedule gossip event "gossip_heartbeat" repeat << */#{period} * * * * * >> attributes {} setting(heartbeat)
+            ent:heartbeat_id := heartbeat
         }
     }
 
@@ -379,9 +376,10 @@ ruleset sensor_profile {
         pre {
             period = event:attrs{"period"}
         }
-        if period then noop()
+        if period then schedule:remove(ent:heartbeat_id)
         fired {
-            schedule gossip event "gossip_heartbeat" repeat << */#{period} * * * * * >> attributes {}
+            schedule gossip event "gossip_heartbeat" repeat << */#{period} * * * * * >> attributes {} setting(heartbeat)
+            ent:heartbeat_id := heartbeat
         }
     }
 
@@ -402,7 +400,7 @@ ruleset sensor_profile {
     rule send_threshold_message {
         select when gossip gossip_threshold_message
         pre {
-            sub_id = get_peer_violation(violation_status).klog("here 2")
+            sub_id = get_peer_violation().klog("here 2")
             message = prepare_violation_message(sub_id).klog("here 3")
         }
         if sub_id then noop()
@@ -491,8 +489,8 @@ ruleset sensor_profile {
         }
         if rumor then noop()
         fired {
-            sensor_logs = ent:rumor_logs{sensor_id}.defaultsTo({}, "first sensor log")
-            ent:rumor_logs{sensor_id} := sensor_logs.put(message_id, rumor)
+            sensor_logs = ent:rumor_logs{sensor_id}.defaultsTo({}, "first sensor log").klog()
+            ent:rumor_logs{sensor_id} := sensor_logs.put(message_id, rumor).klog()
 
         }
     }
@@ -514,14 +512,15 @@ ruleset sensor_profile {
         select when gossip violation_rumor
         pre {
             rumor = event:attrs{"body"}
-            sensor_id = rumor{"SensorID"}
-            seq_num = rumor{"SeqNum"}
+            sensor_id = rumor{"SensorID"}.klog()
+            message_id = rumor{"MessageID"}
+            seq_num = rumor{"SeqNum"}.klog()
             increment = rumor{"Increment"}
         }
-        if rumor then noop()
+        if rumor && sensor_id && seq_num != null then noop()
         fired {
-            current_violation_rumors = ent:active_violations{sensor_id}.defaultsTo({}, "first violation log")
-            ent:violations{sensor_id} := current_violation_rumors.put(seq_num, increment)
+            current_violation_rumors = ent:violations{sensor_id}.defaultsTo({}, "first violation log").klog()
+            ent:violations{sensor_id} := current_violation_rumors.put(seq_num, increment).klog()
         }
     }
 
@@ -602,13 +601,14 @@ ruleset sensor_profile {
         select when debug clear_seq_num 
         always {
             ent:seq_num := 0
+            ent:thresh_seq_num := 0
         }
     }
 
-    rule clear_active_violations {
-        select when debug clear_active_violations
+    rule clear_violations {
+        select when debug clear_violations
         always {
-            ent:active_violations := {}
+            ent:violations := {}
         }
     }
 }
