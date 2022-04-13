@@ -52,7 +52,7 @@ ruleset manage_sensors {
         wovyn_base_url = "https://raw.githubusercontent.com/ChosenGible/misc-krls/master/Lab9/wovyn_base.krl"
         temperature_store_url = "https://raw.githubusercontent.com/ChosenGible/misc-krls/master/Lab9/temperature_store.krl"
         //sensor_profile_url = "https://raw.githubusercontent.com/ChosenGible/misc-krls/master/Lab9/sensor_profile.krl"
-        sensor_profile_url = "file:///home/alexb/pico-rulesets/git-repos/misc-krls/Lab8/sensor_profile.krl"
+        sensor_profile_url = "file:///home/alexb/pico-rulesets/git-repos/misc-krls/Lab9/sensor_profile.krl"
 
         empty_config = {}
 
