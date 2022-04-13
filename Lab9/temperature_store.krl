@@ -5,12 +5,14 @@ ruleset temperature_store {
 
         use module io.picolabs.subscription alias subscription
 
-        shares temperatures, threshold_violations, inrage_temperatures, last_temperature
-        provides temperatures, threshold_violations, inrage_temperatures, last_temperature
+        shares temperatures, last_temperature, violation_status
+        provides temperatures, last_temperature, violation_status
     }
 
     global {
         default_threshold = 80
+
+        clear_temps = []
 
         temperatures = function(){
             ent:temperatures

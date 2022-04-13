@@ -7,8 +7,8 @@ ruleset sensor_profile {
         use module io.picolabs.subscription alias subs
         use module temperature_store alias store
 
-        shares sensor_name, sensor_location, sensor_threshold, alert_phone, sub_list, smart_tracker, recorded_rumors, get_peer, prepare_rumor, prepare_seen, prepare_violation_status, current_violating_sensors
-        provides sensor_name, sensor_location, sensor_threshold, alert_phone, sub_list, smart_tracker, recorded_rumors, get_peer, prepare_rumor, prepare_seen, prepare_violation_status, current_violating_sensors
+        shares sensor_name, sensor_location, sensor_threshold, alert_phone, sub_list, smart_tracker, recorded_rumors, get_peer, prepare_rumor, prepare_seen, prepare_violation_message, current_violating_sensors
+        provides sensor_name, sensor_location, sensor_threshold, alert_phone, sub_list, smart_tracker, recorded_rumors, get_peer, prepare_rumor, prepare_seen, prepare_violation_message, current_violating_sensors
     }
 
     global {
@@ -340,7 +340,7 @@ ruleset sensor_profile {
     rule send_threshold_message {
         select when gossip gossip_threshold_message
         pre {
-            violation_status = store.violation_status()
+            violation_status = store:violation_status()
             sub_id = get_peer_violation(violation_status)
             message = prepare_violation_message(sub_id, violation_status)
         }
@@ -412,7 +412,7 @@ ruleset sensor_profile {
             message = event:attrs{"message"}
         }
         always {
-            ent:violation_tracker{sub_id} := message{"status"}
+            ent:violation_tracker{sensor_id} := message{"status"}
         }
     }
 
